@@ -1,0 +1,46 @@
+---
+name: "Release: Schedule"
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run on the half-hour
+    - cron: "30 * * * *"
+
+env:
+  TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_PAT: ${{ secrets.GH_PAT }}
+  ZURG_GH_CREDS: ${{ secrets.ZURG_GH_CREDS }}
+  PLEX_TOKEN: ${{ secrets.PLEX_TOKEN }}
+
+jobs:
+  generate-build-matrix:
+    name: Generate matrix for building images
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.fetch.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ env.TOKEN }}
+
+      - name: Install tools
+        run: |
+          sudo apt-get update 
+          sudo apt-get -y install moreutils jo
+
+      - name: Fetch new app versions
+        id: fetch
+        run: ./.github/scripts/fetch.sh
+
+  images-build:
+    uses: Action3062/containers/.github/workflows/action-image-build.yaml@main
+    if: needs.generate-build-matrix.outputs.matrix != '[]'
+    needs:
+      - generate-build-matrix
+    with:
+      imagesToBuild: "${{ needs.generate-build-matrix.outputs.matrix }}"
+      pushImages: "true"
+      updateMetadata: "true"
+      sendNotification: "true"
+    secrets: inherit

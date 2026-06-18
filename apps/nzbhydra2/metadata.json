@@ -1,0 +1,28 @@
+{
+  "app": "nzbhydra2",
+  "base": false,
+  "channels": [
+    {
+      "name": "stable",
+      "platforms": [
+        "linux/amd64"
+      ],
+      "stable": true,
+      "tests": {
+        "enabled": true,
+        "type": "web"
+      }
+    },
+    {
+      "name": "proxy",
+      "platforms": [
+        "linux/amd64"
+      ],
+      "stable": false,
+      "tests": {
+        "enabled": false,
+        "type": "web"
+      }
+    }    
+  ]
+}

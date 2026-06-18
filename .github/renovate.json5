@@ -1,0 +1,71 @@
+{
+  "extends": [
+    "config:base",
+    "docker:enableMajor",
+    ":disableRateLimiting",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "platform": "github",
+  "repositories": ["Action3062/containers"],
+  "onboarding": false,
+  "requireConfig": false,
+  "dependencyDashboardTitle": "Renovate Dashboard 🤖",
+  "suppressNotifications": ["prIgnoreNotification"],
+  "commitBodyTable": true,
+  "packageRules": [
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["!alpine", "!ubuntu"],
+    },
+    {
+      "description": "Auto-merge Github Actions",
+      "matchDatasources": ["github-tags"],
+      "automerge": true,
+      "automergeType": "branch",
+      "requiredStatusChecks": null,
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackagePatterns": ["renovatebot/github-action"]
+    },
+    {
+      "matchUpdateTypes": ["digest"],
+      "automerge": true,
+      "automergeType": "branch",
+      "platformAutomerge": true,
+      "ignoreTests": true,
+      "matchPackageNames": ["!alpine", "!ubuntu"]
+    },
+    {
+      // Auto-cascade MeinAppNest-internal base bumps. When ubuntu/alpine/etc.
+      // get a new date stamp or new digest, child Dockerfiles that pin those
+      // bases should follow without manual review — otherwise security
+      // updates sit in PR queues for weeks. Major bumps (e.g. focal→jammy)
+      // are intentionally excluded; those still need a human eye.
+      "description": "Auto-merge MeinAppNest base-image bumps in child Dockerfiles",
+      "matchDatasources": ["docker"],
+      "matchPackagePrefixes": ["ghcr.io/action3062/"],
+      "matchUpdateTypes": ["digest", "pinDigest", "patch", "minor"],
+      "automerge": true,
+      "automergeType": "branch",
+      "platformAutomerge": true,
+      "ignoreTests": true
+    },
+    {
+      "matchDatasources": ["docker"],
+      "commitMessagePrefix": "📣 "
+    }
+  ],
+  "regexManagers": [
+    {
+      "description": "Process Dependencies",
+      "fileMatch": [
+        ".*"
+      ],
+      "matchStrings": [
+        "datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\n.*?\"(?<currentValue>.*)\"\n"
+      ],
+      "datasourceTemplate": "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    }
+  ]
+}

@@ -1,0 +1,378 @@
+---
+name: "Action: Image Build"
+
+on:
+  workflow_call:
+    inputs:
+      imagesToBuild:
+        description: |-
+          Pass a json string with the images and channels to build. e.g.:
+            [
+              {
+                "app": "sonarr",
+                "channel": "main"
+              },
+              {
+                "app": "sonarr",
+                "channel": "develop"
+              }
+            ]
+        required: false
+        type: string
+        default: ''
+
+      pushImages:
+        required: false
+        default: 'true'
+        type: string
+
+      updateMetadata:
+        required: false
+        default: 'false'
+        type: string
+
+      sendNotification:
+        required: false
+        default: 'false'
+        type: string
+
+env:
+  TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  ZURG_GH_CREDS: ${{ secrets.ZURG_GH_CREDS }}
+  PLEX_TOKEN: ${{ secrets.PLEX_TOKEN }}
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    if: inputs.imagesToBuild != '' && inputs.imagesToBuild != '[]'
+    strategy:
+      matrix:
+        image: ["${{ fromJson(inputs.imagesToBuild) }}"]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: Checkout private repo
+        uses: actions/checkout@v3
+        with:
+          repository: Action3062/containers-private
+          path: containers-private
+          token: ${{ secrets.GH_TOKEN_CONTAINERS_PRIVATE }}
+          fetch-depth: 1
+
+      - name: Overlay /apps/ from external repo
+        run: |
+          cp -r containers-private/apps/* apps/
+
+      - name: Setup workflow Variables
+        id: vars
+        shell: bash
+        run: |-
+          container_base=$(jq '.base' ./apps/${{ matrix.image.app }}/metadata.json)
+          echo "::set-output name=chan_build_date::$(date --rfc-3339=seconds --utc)"
+
+          chan_config=$(jq --arg chan "${{ matrix.image.channel }}" '(.channels | .[] | select(.name == $chan))' ./apps/${{ matrix.image.app }}/metadata.json)
+          chan_stable=$(jq --raw-output '.stable' <<< "${chan_config}")
+
+          chan_platforms=$(jq --raw-output '.platforms | join(",")' <<< "${chan_config}") && \
+              echo "::set-output name=chan_platforms::${chan_platforms}"
+          chan_tests_enabled=$(jq --raw-output '.tests.enabled' <<< "${chan_config}") && \
+              echo "::set-output name=chan_tests_enabled::${chan_tests_enabled}"
+          chan_tests_type=$(jq --raw-output '.tests.type' <<< "${chan_config}") && \
+              echo "::set-output name=chan_tests_type::${chan_tests_type}"
+
+          chan_upstream_version=$(bash ./.github/scripts/upstream.sh "${{ matrix.image.app }}" "${{ matrix.image.channel }}") && \
+              echo "::set-output name=chan_upstream_version::${chan_upstream_version}"
+
+          if [[ "${chan_tests_enabled}" == true && "${chan_tests_type}" == "cli" ]]; then
+              echo "::set-output name=chan_goss_args::tail -f /dev/null"
+          fi
+
+          if [[ "${container_base}" == true ]]; then
+              echo "::set-output name=chan_label_type::org.opencontainers.image.base"
+          else
+              echo "::set-output name=chan_label_type::org.opencontainers.image"
+          fi
+
+          if test -f "./apps/${{ matrix.image.app }}/${{ matrix.image.channel }}/Dockerfile"; then
+              echo "::set-output name=chan_dockerfile::./apps/${{ matrix.image.app }}/${{ matrix.image.channel }}/Dockerfile"
+              echo "::set-output name=chan_goss_config::./apps/${{ matrix.image.app }}/${{ matrix.image.channel }}/goss.yaml"
+          else
+              echo "::set-output name=chan_dockerfile::./apps/${{ matrix.image.app }}/Dockerfile"
+              echo "::set-output name=chan_goss_config::./apps/${{ matrix.image.app }}/ci/goss.yaml"
+          fi
+
+          chan_tag_version="${chan_upstream_version//+/-}"
+          if [[ "${chan_stable}" == true ]]; then
+              echo "::set-output name=chan_tag_testing::${{ matrix.image.app }}:testingz"
+              echo "::set-output name=chan_tag_rolling::${{ matrix.image.app }}:rolling"
+              echo "::set-output name=chan_tag_version::${{ matrix.image.app }}:${chan_tag_version}"
+          else
+              echo "::set-output name=chan_tag_testing::${{ matrix.image.app }}-${{ matrix.image.channel }}:testingz"
+              echo "::set-output name=chan_tag_rolling::${{ matrix.image.app }}-${{ matrix.image.channel }}:rolling"
+              echo "::set-output name=chan_tag_version::${{ matrix.image.app }}-${{ matrix.image.channel }}:${chan_tag_version}"
+          fi
+
+      - name: Setup cli tools
+        shell: bash
+        run: |
+          sudo apt-get update 
+          sudo apt-get -y install moreutils jo
+
+      - name: Setup CUE
+        uses: cue-lang/setup-cue@v1.0.0-alpha.2
+
+      - name: Setup Goss
+        if: ${{ steps.vars.outputs.chan_tests_enabled == 'true' }}
+        uses: e1himself/goss-installation-action@v1.1.0
+        with:
+          # renovate: datasource=github-releases depName=aelsabbahy/goss
+          version: v0.3.18
+
+      # - name: Setup QEMU
+      #   uses: docker/setup-qemu-action@v2
+
+      - name: Setup Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Setup GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate image metadata
+        shell: bash
+        run: |-
+          cue vet --schema '#Spec' ./apps/${{ matrix.image.app }}/metadata.json ./metadata.rules.cue
+
+      # SOURCE_CACHE_BUSTER: passed to every build; only used by Dockerfiles
+      # whose stages source-clone a moving branch (currently radarr, planned:
+      # prowlarr — both in containers-private). Including run_attempt invalidates
+      # the layer on workflow reruns too. Dockerfiles that don't declare the ARG
+      # ignore it harmlessly.
+      - name: Build container image for testing
+        id: testing-build
+        uses: docker/build-push-action@v5
+        with:
+          build-args: |-
+            VERSION=${{ steps.vars.outputs.chan_upstream_version }}
+            CHANNEL=${{ matrix.image.channel }}
+            ZURG_GH_CREDS=${{ secrets.ZURG_GH_CREDS }}
+            SOURCE_CACHE_BUSTER=${{ github.run_id }}-${{ github.run_attempt }}
+          context: .
+          platforms: linux/amd64 # load does not support muti-arch https://github.com/docker/buildx/issues/290
+          file: ${{ steps.vars.outputs.chan_dockerfile }}
+          load: true
+          tags: |-
+            ghcr.io/action3062/${{ steps.vars.outputs.chan_tag_testing }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Goss tests
+        id: dgoss
+        if: ${{ steps.vars.outputs.chan_tests_enabled == 'true' }}
+        shell: bash
+        env:
+          DEBUG: true
+          CONTAINER_RUNTIME: docker
+          GOSS_FILE: ${{ steps.vars.outputs.chan_goss_config }}
+          GOSS_OPTS: |-
+            --retry-timeout 60s --sleep 2s --color --format documentation
+          GOSS_FILES_STRATEGY: cp
+        run: |
+          # dgoss run ghcr.io/action3062/${{ steps.vars.outputs.chan_tag_testing }} ${{ steps.vars.outputs.chan_goss_args }}
+          set -euo pipefail
+
+          IMAGE="ghcr.io/action3062/${{ steps.vars.outputs.chan_tag_testing }}"
+          NAME="dgoss-${{ matrix.image.app }}-${{ matrix.image.channel }}"
+
+          # Start dgoss in background, give the container a name we can log-follow.
+          ( dgoss run --name "$NAME" "$IMAGE" ${{ steps.vars.outputs.chan_goss_args }} ) & 
+          DGOSS_PID=$!
+
+          # Wait briefly until the container exists (dgoss prints ID but we want a stable name).
+          for i in {1..50}; do
+            if docker ps -a --format '{{.Names}}' | grep -q "^$NAME$"; then
+              break
+            fi
+            sleep 0.2
+          done
+
+          # Stream logs while tests run.
+          docker logs -f "$NAME" &
+          LOGS_PID=$!
+
+          # Wait for dgoss to finish; preserve exit code.
+          STATUS=0
+          wait "$DGOSS_PID" || STATUS=$?
+
+          # Always show a final log dump (useful if the log follow raced the stop).
+          docker logs "$NAME" || true
+
+          # Exit with dgoss status so the job still fails on test failures.
+          exit $STATUS
+
+      - name: Scan container image for CVEs
+        id: trivy_scan
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: ghcr.io/action3062/${{ steps.vars.outputs.chan_tag_testing }}
+          format: sarif
+          output: trivy-${{ matrix.image.app }}-${{ matrix.image.channel }}.sarif
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          timeout: '20m'
+
+      - name: Upload Trivy scan report
+        if: ${{ always() }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.image.app }}-${{ matrix.image.channel }}.sarif
+          category: containers/${{ matrix.image.app }}-${{ matrix.image.channel }}
+
+      - name: Fail on detected vulnerabilities
+        id: trivy_gate
+        if: ${{ steps.trivy_scan.outcome == 'failure' }}
+        run: |
+          echo "Trivy reported CRITICAL/HIGH vulnerabilities. See SARIF artifact for specifics."
+          exit 1
+
+      - name: Build all platforms
+        id: release
+        uses: docker/build-push-action@v5
+        with:
+          build-args: |-
+            VERSION=${{ steps.vars.outputs.chan_upstream_version }}
+            CHANNEL=${{ matrix.image.channel }}
+            ZURG_GH_CREDS=${{ secrets.ZURG_GH_CREDS }}
+            SOURCE_CACHE_BUSTER=${{ github.run_id }}-${{ github.run_attempt }}
+          labels: |-
+            ${{ steps.vars.outputs.chan_label_type }}.created="${{ steps.vars.outputs.chan_build_date }}"
+            ${{ steps.vars.outputs.chan_label_type }}.title="${{ matrix.image.app }} (${{ matrix.image.channel }})"
+            ${{ steps.vars.outputs.chan_label_type }}.version="${{ steps.vars.outputs.chan_upstream_version }}"
+            ${{ steps.vars.outputs.chan_label_type }}.authors="MeinAppNest <admin@example.com>"
+            ${{ steps.vars.outputs.chan_label_type }}.url="https://github.com/Action3062/containers/apps/${{ matrix.image.app }}"
+            ${{ steps.vars.outputs.chan_label_type }}.build.url="https://github.com/Action3062/containers/actions/runs/${{ github.run_id }}"
+            ${{ steps.vars.outputs.chan_label_type }}.documentation="https://github.com/Action3062/containers/apps/${{ matrix.image.app }}/README.md"
+            ${{ steps.vars.outputs.chan_label_type }}.revision="${{ github.sha }}"
+
+          context: .
+          platforms: ${{ steps.vars.outputs.chan_platforms }}
+          file: ${{ steps.vars.outputs.chan_dockerfile }}
+          push: ${{ inputs.pushImages == 'true' }}
+          tags: |-
+            ghcr.io/action3062/${{ steps.vars.outputs.chan_tag_rolling }}
+            ghcr.io/action3062/${{ steps.vars.outputs.chan_tag_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # If the testing or full build failed, look at the failed step's log
+      # and decide whether the failure looks like a patch-apply failure
+      # (git apply / git am / patch). When patches stop applying, that
+      # almost always means upstream changed and we need to regenerate
+      # them, so it's worth surfacing distinctly in Discord.
+      - name: Detect patch failure
+        id: patch-check
+        if: ${{ always() && (steps.release.outcome == 'failure' || steps.testing-build.outcome == 'failure') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set +e
+
+          # Scope log fetch to *this* matrix job — RUNNER_NAME is unique per
+          # concurrent runner, which is the cheapest way to disambiguate.
+          JOB_ID=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" \
+            --paginate \
+            --jq ".jobs[] | select(.runner_name == \"$RUNNER_NAME\") | .id" \
+            | head -1)
+
+          if [[ -n "$JOB_ID" ]]; then
+            LOG=$(gh run view "$GITHUB_RUN_ID" --job "$JOB_ID" --log-failed 2>/dev/null)
+          else
+            LOG=$(gh run view "$GITHUB_RUN_ID" --log-failed 2>/dev/null)
+          fi
+
+          if [[ -z "$LOG" ]]; then
+            echo "could not fetch failed-step log; falling back to generic failure message"
+            exit 0
+          fi
+
+          # git apply: "error: patch failed: path/file:NN" / "error: <name>: patch does not apply"
+          # git am:    "Apply failure on:" / "Patch failed at NNNN"
+          # patch(1):  "Hunk #N FAILED" / "patching file ... FAILED"
+          # Patterns are deliberately unanchored: `gh run view --log-failed`
+          # prefixes every line with `<job>\t<step>\t<timestamp> ` so any ^
+          # anchor would silently never match in the real log stream.
+          if echo "$LOG" | grep -qE "error: patch failed|patch does not apply|Apply failure on:|Patch failed at |Hunk #[0-9]+ FAILED|patching file .* FAILED"; then
+            # Best-effort: pull the offending patch filename out of the log so the
+            # Discord message names the patch directly.
+            NAME=$(echo "$LOG" \
+              | grep -oE "[A-Za-z0-9._/-]+\.patch" \
+              | head -1)
+            echo "patch_failed=true" >> "$GITHUB_OUTPUT"
+            echo "failed_patch=${NAME:-unknown.patch}" >> "$GITHUB_OUTPUT"
+            echo "detected patch failure (patch: ${NAME:-unknown.patch})"
+          else
+            echo "no patch-failure signature found in failed step logs"
+          fi
+
+      - name: Build successful
+        id: build-success
+        if: ${{ always() && steps.release.outcome == 'success' }}
+        run: |-
+          echo "::set-output name=message::🎉 ${{ matrix.image.app }}-${{ matrix.image.channel }} (${{ steps.vars.outputs.chan_upstream_version }})"
+          echo "::set-output name=color::0x00FF00"
+
+      - name: Patch failed
+        id: build-failed-patch
+        if: ${{ always() && steps.patch-check.outputs.patch_failed == 'true' }}
+        run: |-
+          echo "::set-output name=message::🩹 Patch needs rebasing: ${{ matrix.image.app }}-${{ matrix.image.channel }} (${{ steps.vars.outputs.chan_upstream_version }})"
+          echo "::set-output name=description::\`${{ steps.patch-check.outputs.failed_patch }}\` no longer applies — upstream has likely changed. Regenerate the patch against the current source."
+          echo "::set-output name=color::0xFFA500"
+
+      - name: Build failed
+        id: build-failed
+        if: ${{ always() && (steps.release.outcome == 'failure' || steps.dgoss.outcome == 'failure' || steps.trivy_gate.outcome == 'failure') && steps.patch-check.outputs.patch_failed != 'true' }}
+        run: |-
+          echo "::set-output name=message::💥 ${{ matrix.image.app }}-${{ matrix.image.channel }} (${{ steps.vars.outputs.chan_upstream_version }})"
+          echo "::set-output name=color::0xFF0000"
+
+      - name: Send Discord Webhook
+        uses: sarisia/actions-status-discord@v1
+        if: ${{ always() && inputs.sendNotification == 'true' }}
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          # Role-mention only on patch failures — generic build breaks shouldn't
+          # ping anyone (most are transient). Role ID lives in a repo variable
+          # so it can be rotated without a PR. If the variable isn't set, the
+          # ping is simply omitted (Discord ignores empty content).
+          content: ${{ steps.patch-check.outputs.patch_failed == 'true' && vars.DISCORD_PATCH_ROLE_ID != '' && format('<@&{0}>', vars.DISCORD_PATCH_ROLE_ID) || '' }}
+          title: ${{ steps.build-failed-patch.outputs.message || steps.build-failed.outputs.message || steps.build-success.outputs.message }}
+          description: ${{ steps.build-failed-patch.outputs.description }}
+          # image: ${{ secrets.EMBED_IMAGE }}
+          color: ${{ steps.build-failed-patch.outputs.color || steps.build-failed.outputs.color }}
+          username: GitHub Actions
+          # avatar_url: ${{ secrets.AVATAR_URL }}
+
+  # Summarize matrix https://github.community/t/status-check-for-a-matrix-jobs/127354/7
+  build_success:
+    name: Build matrix success
+    runs-on: ubuntu-latest
+    needs:
+      - build-and-test
+    if: ${{ always() }}
+    steps:
+      - name: Check build matrix status
+        if: ${{ (inputs.imagesToBuild != '' && inputs.imagesToBuild != '[]') && (needs.build-and-test.result != 'success') }}
+        run: exit 1

@@ -1,0 +1,83 @@
+{
+  "app": "knightcrawler",
+  "base": false,
+  "channels": [
+    {
+      "name": "addon",
+      "platforms": [
+        "linux/amd64"
+      ],
+      "stable": false,
+      "tests": {
+        "enabled": false,
+        "type": "web"
+      }
+    },
+    {
+      "name": "consumer",
+      "platforms": [
+        "linux/amd64"
+      ],
+      "stable": false,
+      "tests": {
+        "enabled": false,
+        "type": "web"
+      }
+    },
+    {
+      "name": "producer",
+      "platforms": [
+        "linux/amd64"
+      ],
+      "stable": false,
+      "tests": {
+        "enabled": false,
+        "type": "web"
+      }
+    },
+    {
+      "name": "migrator",
+      "platforms": [
+        "linux/amd64"
+      ],
+      "stable": false,
+      "tests": {
+        "enabled": false,
+        "type": "web"
+      }
+    },
+    {
+      "name": "metadata",
+      "platforms": [
+        "linux/amd64"
+      ],
+      "stable": false,
+      "tests": {
+        "enabled": false,
+        "type": "web"
+      }
+    },
+    {
+      "name": "debrid-collector",
+      "platforms": [
+        "linux/amd64"
+      ],
+      "stable": false,
+      "tests": {
+        "enabled": false,
+        "type": "web"
+      }
+    },
+    {
+      "name": "qbit-collector",
+      "platforms": [
+        "linux/amd64"
+      ],
+      "stable": false,
+      "tests": {
+        "enabled": false,
+        "type": "web"
+      }
+    }                   
+  ]
+}

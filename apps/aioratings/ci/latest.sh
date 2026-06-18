@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# AIORatings is the MeinAppNest-internal Stremio ratings addon.
+# Source: https://github.com/Action3062/aioratings (private)
+# Releases are cut by release-please from conventional commits on the
+# main branch. Credentials come from ZURG_GH_CREDS,
+# already passed through action-image-build.yaml for cross-app use
+# (same pattern as nest-bot/comet).
+
+set -euo pipefail
+
+channel="${1:-main}"
+repo="Action3062/aioratings"
+auth_header="Authorization: Bearer ${ZURG_GH_CREDS}"
+
+case "$channel" in
+  dev)
+    version="$(
+      curl -fsSL \
+        -H "$auth_header" \
+        "https://api.github.com/repos/${repo}/commits/main" \
+      | jq -r '.sha'
+    )"
+    ;;
+  *)
+    version="$(
+      curl -fsSL \
+        -H "$auth_header" \
+        "https://api.github.com/repos/${repo}/releases/latest" \
+      | jq -r '.tag_name'
+    )"
+    ;;
+esac
+
+printf '%s' "${version}"

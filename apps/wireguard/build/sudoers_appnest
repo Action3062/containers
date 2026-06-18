@@ -1,0 +1,17 @@
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/iptables-legacy-save
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/ip6tables-legacy-save
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/iptables-nft-save
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/ip6tables-nft-save
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/iptables -F OUTPUT
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/ip6tables -F OUTPUT
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/iptables -A OUTPUT *
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/ip6tables -A OUTPUT *
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/ip -4 route add *
+appnest ALL= EXEC: NOPASSWD: /usr/sbin/ip -6 route add *
+appnest ALL= EXEC: NOPASSWD: /usr/bin/wg show *
+appnest ALL= EXEC: NOPASSWD: /usr/bin/wg-quick up *
+appnest ALL= EXEC: NOPASSWD: /usr/bin/wg-quick down *
+appnest ALL= EXEC: NOPASSWD: /usr/bin/find /etc/wireguard -type f *
+appnest ALL= EXEC: NOPASSWD: /usr/bin/update-alternatives --set iptables *
+appnest ALL= EXEC: NOPASSWD: /usr/bin/update-alternatives --set ip6tables *
+Defaults env_keep +="TZ"
