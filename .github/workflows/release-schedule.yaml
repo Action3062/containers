@@ -34,6 +34,10 @@ jobs:
         run: ./.github/scripts/fetch.sh
 
   images-build:
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
     uses: Action3062/containers/.github/workflows/action-image-build.yaml@main
     if: needs.generate-build-matrix.outputs.matrix != '[]'
     needs:

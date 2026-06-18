@@ -40,11 +40,17 @@ env:
   TOKEN: ${{ secrets.GITHUB_TOKEN }}
   ZURG_GH_CREDS: ${{ secrets.ZURG_GH_CREDS }}
   PLEX_TOKEN: ${{ secrets.PLEX_TOKEN }}
+  # Privat-Overlay nur ausführen, wenn ein Token für containers-private hinterlegt ist
+  HAS_PRIVATE_REPO: ${{ secrets.GH_TOKEN_CONTAINERS_PRIVATE != '' && 'true' || 'false' }}
 
 jobs:
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
     if: inputs.imagesToBuild != '' && inputs.imagesToBuild != '[]'
     strategy:
       matrix:
@@ -56,6 +62,7 @@ jobs:
           fetch-depth: 1
 
       - name: Checkout private repo
+        if: ${{ env.HAS_PRIVATE_REPO == 'true' }}
         uses: actions/checkout@v3
         with:
           repository: Action3062/containers-private
@@ -64,8 +71,11 @@ jobs:
           fetch-depth: 1
 
       - name: Overlay /apps/ from external repo
+        if: ${{ env.HAS_PRIVATE_REPO == 'true' }}
         run: |
-          cp -r containers-private/apps/* apps/
+          if [ -d containers-private/apps ]; then
+            cp -r containers-private/apps/* apps/ 2>/dev/null || true
+          fi
 
       - name: Setup workflow Variables
         id: vars

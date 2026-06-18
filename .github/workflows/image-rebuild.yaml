@@ -61,6 +61,10 @@ jobs:
           echo "::set-output name=changes::${output}"
 
   images-build:
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
     uses: Action3062/containers/.github/workflows/action-image-build.yaml@main
     needs:
       - generate-build-matrix
