@@ -1,0 +1,25 @@
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#process
+process:
+  node:
+    running: true
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#file
+file:
+  /entrypoint.sh:
+    exists: true
+    mode: "0755"
+  /gateway-entrypoint.sh:
+    exists: true
+    mode: "0755"
+  /launch-tmux.sh:
+    exists: true
+    mode: "0755"
+  /usr/local/bin/ttyd:
+    exists: true
+    mode: "0755"
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#http
+http:
+  http://localhost:18789/healthz:
+    status: 200
+    timeout: 10000
