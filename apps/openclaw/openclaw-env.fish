@@ -11,7 +11,7 @@ set -gx OPENCLAW_GATEWAY_PORT $OPENCLAW_GATEWAY_PORT
 test -z "$OPENCLAW_GATEWAY_PORT"; and set -gx OPENCLAW_GATEWAY_PORT 18789
 
 # Prepend the standard tooling paths idempotently.
-for dir in /home/node/.bun/bin /home/linuxbrew/.linuxbrew/bin /home/linuxbrew/.linuxbrew/sbin /usr/local/bin
+for dir in /opt/bun/bin /home/linuxbrew/.linuxbrew/bin /home/linuxbrew/.linuxbrew/sbin /usr/local/bin
     if test -d "$dir"; and not contains -- "$dir" $PATH
         set -gx PATH $dir $PATH
     end
