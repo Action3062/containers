@@ -84,14 +84,24 @@ COPY --chown=node:node --from=cloner /source/patches ./patches
 COPY --chown=node:node --from=cloner /source/scripts ./scripts
 
 USER node
+
+# Upstream's build is memory-hungry; without --max-old-space-size the V8 default
+# of ~1.5G OOMs silently and pnpm appears to hang. verify_deps_before_run=false
+# stops pnpm from re-reconciling the workspace on every `pnpm <script>` call
+# now that the full source has been copied in.
+ENV NODE_OPTIONS=--max-old-space-size=8192 \
+    pnpm_config_verify_deps_before_run=false
+
 RUN pnpm install --frozen-lockfile
 
 COPY --chown=node:node --from=cloner /source/. .
 
-RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build && \
-    pnpm ui:build && \
-    CI=true pnpm prune --prod && \
-    pnpm store prune || true
+RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build:docker
+RUN pnpm ui:build
+RUN CI=true pnpm prune --prod || true
+RUN pnpm store prune || true
+
+ENV NODE_OPTIONS=""
 
 USER root
 
