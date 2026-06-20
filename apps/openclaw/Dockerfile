@@ -33,7 +33,8 @@ ENV NODE_ENV=production \
     OPENCLAW_GATEWAY_BIND=loopback \
     TTYD_PORT=7681 \
     OPENCLAW_RUN_TTYD=0 \
-    PATH="/home/node/.bun/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    BUN_INSTALL=/opt/bun \
+    PATH="/opt/bun/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # Runtime packages, locales, fish/tmux for the customer shell, tini as PID 1.
 RUN apt-get update && \
@@ -48,7 +49,8 @@ RUN apt-get update && \
       curl \
       ca-certificates \
       jq \
-      locales && \
+      locales \
+      unzip && \
     sed -i 's/^# *\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen && \
     locale-gen && \
     update-locale LANG=en_US.UTF-8 && \
@@ -60,10 +62,11 @@ RUN groupmod -g 568 node && \
     usermod -u 568 -g 568 -d /config node && \
     install -d -o node -g node -m 0755 /app /config /config/.openclaw /config/.openclaw/workspace /config/.config/openclaw /config/.local/share
 
-# Bun (kept on PATH for tooling; not required at runtime).
-RUN curl -fsSL https://bun.sh/install | bash && \
-    mv /root/.bun /home/node/.bun && \
-    chown -R node:node /home/node/.bun
+# Bun (kept on PATH for tooling; installed system-wide so every user can read it).
+RUN curl -fsSL https://bun.sh/install -o /tmp/bun-install.sh && \
+    bash /tmp/bun-install.sh && \
+    rm /tmp/bun-install.sh && \
+    chmod -R a+rX "${BUN_INSTALL}"
 
 # corepack so pnpm matches the lockfile's packageManager pin.
 RUN corepack enable
