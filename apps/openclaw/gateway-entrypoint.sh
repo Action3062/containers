@@ -18,6 +18,17 @@ if [[ "${bind}" == "lan" || "${bind}" == "0.0.0.0" ]]; then
   fi
 fi
 
+# A fresh container has no openclaw config until the customer runs
+# `openclaw setup` from the web shell. Bring the gateway up in unconfigured
+# mode in that window so /healthz works and the operator's k8s probes pass.
+# Operator can force a strict start by setting OPENCLAW_REQUIRE_CONFIG=1.
+extra_args=()
+config_marker="${XDG_CONFIG_HOME:-${HOME}/.config}/openclaw/config.json"
+if [[ ! -f "${config_marker}" && "${OPENCLAW_REQUIRE_CONFIG:-0}" != "1" ]]; then
+  echo "INFO: no config at ${config_marker}; starting with --allow-unconfigured." >&2
+  extra_args+=(--allow-unconfigured)
+fi
+
 # Optional ttyd web-shell on a separate port. Killed when the gateway exits.
 if [[ "${OPENCLAW_RUN_TTYD:-0}" == "1" ]]; then
   ttyd_port="${TTYD_PORT:-7681}"
@@ -41,4 +52,5 @@ echo "Starting OpenClaw gateway on :${port} (bind=${bind})..."
 exec node /app/dist/index.js gateway \
   --port "${port}" \
   --bind "${bind}" \
+  "${extra_args[@]}" \
   "$@"
