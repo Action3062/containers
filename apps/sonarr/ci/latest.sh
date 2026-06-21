@@ -2,11 +2,12 @@
 channel=$1
 
 if [[ "${channel}" == "dev" ]]; then
-    # fake it
-    version=$(curl -sX GET "https://services.sonarr.tv/v1/download/main?version=4.0" | jq --raw-output '.version')
+    branch=develop
 else
-    version=$(curl -sX GET "https://services.sonarr.tv/v1/download/master?version=4.0" | jq --raw-output '.version')
+    branch=main
 fi
+
+version=$(curl -sX GET "https://services.sonarr.tv/v1/download/${branch}?version=4.0" | jq --raw-output '.version')
 
 version="${version#*v}"
 version="${version#*release-}"
