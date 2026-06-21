@@ -1,0 +1,6 @@
+## error-pages is a small static HTTP server listening on 8080 with no
+## external dependencies. Tests are disabled in metadata.json for now;
+## this keeps the port assertion ready if they are re-enabled.
+port:
+  tcp:8080:
+    listening: true

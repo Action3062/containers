@@ -1,0 +1,6 @@
+## ImmichFrame is a .NET (Kestrel) app serving on 8080. It needs an
+## Immich server URL to render content, so tests are disabled in
+## metadata.json; this port assertion is kept for future re-enablement.
+port:
+  tcp:8080:
+    listening: true

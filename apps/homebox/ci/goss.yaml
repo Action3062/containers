@@ -1,0 +1,6 @@
+## Homebox is a single Go binary that serves the API + web UI on 7745,
+## backed by an embedded SQLite DB by default, so it boots and listens
+## without any external state. The listening port is the health signal.
+port:
+  tcp:7745:
+    listening: true

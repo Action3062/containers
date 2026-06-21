@@ -1,0 +1,6 @@
+## beaverhabits is a NiceGUI app served by gunicorn/uvicorn on 8080,
+## backed by a file-based store, so it boots and listens without any
+## external state. The listening port is the reliable health signal.
+port:
+  tcp:8080:
+    listening: true
