@@ -34,7 +34,7 @@ while read -r metadata; do
             changes_array+=("$(jo app="${app}" channel="${channel}")")
         fi
     done < <(jq --raw-output -c '.channels | .[]' "${metadata}")
-done < <(find ./apps -name metadata.json)
+done < <(find ./apps -mindepth 2 -maxdepth 2 -name metadata.json)
 
 output="[]"
 if [[ "${#changes_array[@]}" -gt 0 ]]; then

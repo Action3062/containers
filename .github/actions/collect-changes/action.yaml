@@ -23,6 +23,7 @@ runs:
         filters: |
           addedOrModified:
             - added|modified: 'apps/*/**'
+            - '!apps/_pending/**'
 
     - name: Collect changed containers
       if: |

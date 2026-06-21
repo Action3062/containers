@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "apps/**"
+      - "!apps/_pending/**"
       - "!apps/**/metadata.json"
       - "!apps/**/README.md"
 
