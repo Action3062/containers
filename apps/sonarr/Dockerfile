@@ -3,12 +3,12 @@ FROM ghcr.io/action3062/alpine:rolling AS fetch
 ARG VERSION
 ARG CHANNEL=main
 
-# Base already ships curl, tar, file - no extra apk needed.
-# stable -> master, dev -> main (matches apps/sonarr/ci/latest.sh).
+# stable -> main (Sonarr v4 stable), dev -> develop. master is legacy v3 and
+# has no musl-x64 build (404 from /updatefile).
 RUN set -eux; \
     case "${CHANNEL}" in \
-      dev) BRANCH=main ;; \
-      *)   BRANCH=master ;; \
+      dev) BRANCH=develop ;; \
+      *)   BRANCH=main ;; \
     esac; \
     URL="https://services.sonarr.tv/v1/update/${BRANCH}/updatefile?os=linuxmusl&runtime=netcore&arch=x64"; \
     echo "Fetching: ${URL}"; \
