@@ -29,7 +29,7 @@ RUN set -eux; \
     echo "App dir: ${APP_DIR}"; \
     mv "${APP_DIR}" /app/Sonarr; \
     rm /tmp/sonarr.tar.gz; \
-    rm -f /app/Sonarr/package_info /app/Sonarr/Sonarr.Update; \
+    rm -rf /app/Sonarr/package_info /app/Sonarr/Sonarr.Update; \
     ls -la /app/Sonarr | head -10
 
 
