@@ -1,0 +1,9 @@
+## Jellystat is a Node.js backend - require an external postgres DB in
+## production; the image still spins up and listens, the DB check fails
+## later. Goss only validates the process + listening port here.
+process:
+  node:
+    running: true
+port:
+  tcp:3000:
+    listening: true

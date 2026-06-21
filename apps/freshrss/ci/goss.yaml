@@ -1,0 +1,7 @@
+## FreshRSS runs via Apache + PHP-FPM in the upstream image.
+process:
+  apache2:
+    running: true
+port:
+  tcp:80:
+    listening: true
