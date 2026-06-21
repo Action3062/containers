@@ -1,4 +1,4 @@
-FROM ghcr.io/action3062/ubuntu:jammy-rolling
+FROM ghcr.io/action3062/ubuntu:jammy-20260509
 
 ARG TARGETPLATFORM
 ARG VERSION
