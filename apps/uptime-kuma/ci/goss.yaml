@@ -1,0 +1,16 @@
+---
+# uptime-kuma runs "node server/server.js" and serves its SPA on port 3001.
+# Liveness is asserted via the port + an HTTP request to the dashboard root,
+# which is the authoritative readiness signal for the app.
+
+# https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#port
+port:
+  # https://github.com/aelsabbahy/goss/issues/149
+  tcp:3001:
+    listening: true
+
+# https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#http
+http:
+  http://localhost:3001:
+    status: 200
+    timeout: 10000
