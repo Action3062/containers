@@ -1,6 +1,5 @@
-process:
-  python3:
-    running: true
+## flatnotes runs FastAPI via uvicorn; process name may vary by upstream
+## image build. Listening port is the reliable health signal.
 port:
   tcp:8080:
     listening: true
