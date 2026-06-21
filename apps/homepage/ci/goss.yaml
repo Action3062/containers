@@ -1,8 +1,8 @@
 ---
-# https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#process
-process:
-  node:
-    running: true
+# homepage runs Next.js standalone (server.js). Next sets the process title to
+# "next-server (v...)", so a goss `process: node` check never matches even though
+# node is running. Liveness is asserted via the port + the upstream /api/healthcheck
+# endpoint instead, which is the authoritative readiness signal for the app.
 
 # https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#port
 port:
