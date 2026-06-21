@@ -18,7 +18,6 @@ RUN set -eux; \
       -A "github.com/action3062/containers" \
       -o /tmp/radarr.tar.gz "${URL}"; \
     ls -la /tmp/radarr.tar.gz; \
-    file /tmp/radarr.tar.gz; \
     mkdir -p /app/extract; \
     tar xzf /tmp/radarr.tar.gz -C /app/extract; \
     rm /tmp/radarr.tar.gz; \
