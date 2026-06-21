@@ -16,7 +16,6 @@ RUN set -eux; \
       -A "github.com/action3062/containers" \
       -o /tmp/sonarr.tar.gz "${URL}"; \
     ls -la /tmp/sonarr.tar.gz; \
-    file /tmp/sonarr.tar.gz; \
     mkdir -p /app/extract; \
     tar xzf /tmp/sonarr.tar.gz -C /app/extract; \
     rm /tmp/sonarr.tar.gz; \
