@@ -1,0 +1,27 @@
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#user
+user:
+  sonarr:
+    exists: true
+    uid: 568
+    gid: 568
+    home: /config
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#file
+file:
+  /app/sonarr/Sonarr:
+    exists: true
+  /config:
+    exists: true
+    owner: sonarr
+    group: sonarr
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#process
+process:
+  Sonarr:
+    running: true
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#http
+http:
+  http://localhost:8989/ping:
+    status: 200
+    timeout: 10000

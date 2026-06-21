@@ -1,0 +1,27 @@
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#user
+user:
+  radarr:
+    exists: true
+    uid: 568
+    gid: 568
+    home: /config
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#file
+file:
+  /app/radarr/Radarr:
+    exists: true
+  /config:
+    exists: true
+    owner: radarr
+    group: radarr
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#process
+process:
+  Radarr:
+    running: true
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#http
+http:
+  http://localhost:7878/ping:
+    status: 200
+    timeout: 10000
