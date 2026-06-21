@@ -3,14 +3,15 @@ FROM ghcr.io/action3062/alpine:rolling AS fetch
 ARG VERSION
 ARG CHANNEL=main
 
-# stable -> main (Sonarr v4 stable), dev -> develop. master is legacy v3 and
-# has no musl-x64 build (404 from /updatefile).
+# stable -> main (Sonarr v4 stable), dev -> develop. Sonarr's API exposes
+# /v1/download/{branch} (NOT /v1/update/.../updatefile) which redirects to
+# the actual tarball when os+arch+version are passed.
 RUN set -eux; \
     case "${CHANNEL}" in \
       dev) BRANCH=develop ;; \
       *)   BRANCH=main ;; \
     esac; \
-    URL="https://services.sonarr.tv/v1/update/${BRANCH}/updatefile?os=linuxmusl&runtime=netcore&arch=x64"; \
+    URL="https://services.sonarr.tv/v1/download/${BRANCH}?version=${VERSION}&os=linuxmusl&runtime=netcore&arch=x64"; \
     echo "Fetching: ${URL}"; \
     curl -fL --retry 3 --retry-delay 2 --show-error \
       -A "github.com/action3062/containers" \
