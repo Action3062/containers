@@ -55,5 +55,8 @@ Upstream image exists but the published tag format doesn't match what
 `latest.sh` returns (e.g. `4.5.2` vs `v4.5.2` vs `release-4.5.2`).
 Needs a per-app tag-mapping pass.
 
-_(none confirmed yet — initial guesses for sabnzbd, freshrss, jellystat,
-flatnotes, stremthru pending CI verdict.)_
+- **sabnzbd** — `ghcr.io/sabnzbd/sabnzbd:${VERSION}` returned "manifest not found".
+  The upstream `sabnzbd-docker` Buildx publishes immutable tags like
+  `4.5.2-4` (release suffix) rather than bare `4.5.2`. Either pull the
+  tag with the trailing `-N` from a separate API call, or pin to the
+  rolling `latest` tag and override at runtime via image digest.
