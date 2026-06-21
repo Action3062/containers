@@ -1,0 +1,26 @@
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#user
+user:
+  appnest:
+    exists: true
+    uid: 568
+    gid: 568
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#file
+file:
+  /app/lidarr/Lidarr:
+    exists: true
+  /config:
+    exists: true
+    owner: appnest
+    group: appnest
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#process
+process:
+  Lidarr:
+    running: true
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#http
+http:
+  http://localhost:8686/ping:
+    status: 200
+    timeout: 10000
