@@ -16,13 +16,23 @@ RUN set -eux; \
     echo "Fetching: ${URL}"; \
     curl -fL --retry 3 --retry-delay 2 --show-error \
       -A "github.com/action3062/containers" \
+      -w 'curl: http=%{http_code} size=%{size_download} url=%{url_effective}\n' \
       -o /tmp/radarr.tar.gz "${URL}"; \
     ls -la /tmp/radarr.tar.gz; \
     mkdir -p /app/extract; \
-    tar xzf /tmp/radarr.tar.gz -C /app/extract; \
+    if ! tar xzf /tmp/radarr.tar.gz -C /app/extract; then \
+      echo "tar failed; first 500 bytes of payload:"; \
+      head -c 500 /tmp/radarr.tar.gz; echo; \
+      exit 1; \
+    fi; \
+    echo "Extracted layout:"; ls -la /app/extract; \
+    APP_DIR="$(find /app/extract -mindepth 1 -maxdepth 1 -type d | head -1)"; \
+    test -n "${APP_DIR}" -a -d "${APP_DIR}"; \
+    echo "App dir: ${APP_DIR}"; \
+    mv "${APP_DIR}" /app/Radarr; \
     rm /tmp/radarr.tar.gz; \
-    rm -f /app/extract/Radarr/package_info /app/extract/Radarr/Radarr.Update; \
-    ls -la /app/extract/Radarr | head -10
+    rm -f /app/Radarr/package_info /app/Radarr/Radarr.Update; \
+    ls -la /app/Radarr | head -10
 
 
 FROM ghcr.io/action3062/alpine:rolling
@@ -43,7 +53,7 @@ RUN apk add --no-cache \
       libstdc++ \
       sqlite-libs
 
-COPY --from=fetch --chown=appnest:appnest /app/extract/Radarr /app/radarr
+COPY --from=fetch --chown=appnest:appnest /app/Radarr /app/radarr
 
 USER appnest
 WORKDIR /config
