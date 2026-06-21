@@ -1,89 +1,76 @@
-FROM ghcr.io/action3062/ubuntu:focal-20250404
+FROM ghcr.io/action3062/ubuntu:jammy-rolling
 
 ARG TARGETPLATFORM
-ARG BUILDPLATFORM
 ARG VERSION
 ARG CHANNEL
-ENV S6_OVERLAY_VERSION=3.2.0.0
 
-ENV NVIDIA_DRIVER_CAPABILITIES="compute,video,utility"
+# NVIDIA NVENC: the driver libraries are injected at runtime by the host's
+# NVIDIA container runtime; these vars only advertise the capabilities.
+ENV NVIDIA_DRIVER_CAPABILITIES="compute,video,utility" \
+    NVIDIA_VISIBLE_DEVICES="all" \
+    # Recommended by Jellyfin: disable glibc dynamic heap trimming
+    MALLOC_TRIM_THRESHOLD_=131072
 
-# Disable glibc dynamic heap adjustment
-ENV MALLOC_TRIM_THRESHOLD_=131072
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # hadolint ignore=DL3008,DL3015,SC2086
 RUN \
     apt-get -qq update \
+    && apt-get -qq install -y --no-install-recommends \
+        gnupg2 python3 libjemalloc2 \
     && \
-    apt-get -qq install -y \
-        gnupg2 python3 xz-utils sqlite3 libjemalloc2 libjemalloc-dev \
+    ARCH="$(dpkg --print-architecture)" \
     && \
-    case "${TARGETPLATFORM}" in \
+    case "${TARGETPLATFORM:-linux/amd64}" in \
         'linux/amd64') \
-            curl -sL https://repositories.intel.com/graphics/intel-graphics.key | apt-key add - \
-            && echo 'deb [arch=amd64] https://repositories.intel.com/graphics/ubuntu focal main' > /etc/apt/sources.list.d/intel.list \
-            && \
-            export ARCH='amd64'; \
-            export EXTRA_INSTALL_ARG='intel-media-va-driver-non-free nvidia-opencl-icd-340 i965-va-driver mesa-va-drivers'; \
+            # Intel VAAPI / Quick Sync drivers (Ubuntu universe/multiverse, no external repo)
+            EXTRA_INSTALL_ARG='intel-media-va-driver-non-free i965-va-driver mesa-va-drivers vainfo intel-opencl-icd ocl-icd-libopencl1'; \
         ;; \
-        'linux/arm64') \
-            apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 6587FFD6536B8826E88A62547876AE518CBCF2F2 \
-            && echo "deb http://ppa.launchpad.net/ubuntu-raspi2/ppa-nightly/ubuntu focal main" | tee /etc/apt/sources.list.d/raspberrypi.list \
-            && \
-            export ARCH='arm64'; \
-            export EXTRA_INSTALL_ARG='libomxil-bellagio0 libomxil-bellagio-bin libraspberrypi0'; \
-            unset NVIDIA_DRIVER_CAPABILITIES; \
+        *) \
+            EXTRA_INSTALL_ARG='mesa-va-drivers vainfo'; \
         ;; \
     esac \
     && \
-    apt-get -qq update \
-    && \
-    apt-get -qq install -y \
-        ca-certificates \
+    # Jellyfin official APT repository
+    mkdir -p /etc/apt/keyrings \
+    && curl -fsSL "https://repo.jellyfin.org/ubuntu/jellyfin_team.gpg.key" | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg \
+    && echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/jellyfin.gpg] https://repo.jellyfin.org/ubuntu jammy main" > /etc/apt/sources.list.d/jellyfin.list \
+    && apt-get -qq update \
+    && apt-get -qq install -y --no-install-recommends \
         ${EXTRA_INSTALL_ARG} \
-    && \
-    curl -fsSL "https://repo.jellyfin.org/ubuntu/jellyfin_team.gpg.key" | apt-key add - && \
-    echo "deb [arch=${ARCH}] https://repo.jellyfin.org/ubuntu focal main" | tee /etc/apt/sources.list.d/jellyfin.list && \
-    apt-get -qq update && \
-    apt-get -qq install -y \
         jellyfin-server="${VERSION}*" \
         jellyfin-web \
-        jellyfin-ffmpeg5 \
+        jellyfin-ffmpeg7 \
     && \
-    apt-get remove -y gnupg2 \
-    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+    apt-get purge -y gnupg2 \
     && apt-get autoremove -y \
     && apt-get clean \
-    && \
-    rm -rf \
-        /tmp/* \
-        /var/lib/apt/lists/* \
-        /var/tmp/ \
-    && printf "umask %d" "${UMASK}" >> /etc/bash.bashrc
+    && rm -rf /tmp/* /var/lib/apt/lists/* /var/tmp/*
 
-# # Replace malloc with jemalloc
-# RUN apt-get -qq update \
-#     && apt-get -qq install -y libjemalloc2 libjemalloc-dev 
-# ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
+# Replace malloc with jemalloc (better memory behaviour under transcoding load)
+ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
 
-# Add s6
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp
-RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz /tmp
-RUN tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz
-RUN chown -R appnest:appnest /run
+# Per-plan transcode limits — override per customer/container.
+# Unset *_TRANSCODES means unlimited; set JELLYFIN_API_KEY for graceful stops.
+ENV JELLYFIN_ALLOW_4K="true" \
+    JELLYFIN_URL="http://localhost:8096" \
+    TRANSCODE_KILLER_ENABLED="true" \
+    TRANSCODE_KILLER_INTERVAL="5"
 
-COPY --chown=568:568 apps/plex/root /
+LABEL org.opencontainers.image.title="jellyfin" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.url="https://github.com/action3062/containers/tree/main/apps/jellyfin" \
+      org.opencontainers.image.source="https://github.com/jellyfin/jellyfin"
+
+COPY ./apps/jellyfin/entrypoint.sh /entrypoint.sh
+COPY ./apps/jellyfin/transcode-killer.py /transcode-killer.py
+
+# 8096 http · 8920 https · 7359/udp client discovery · 1900/udp DLNA
+EXPOSE 8096 8920 7359/udp 1900/udp
+
+VOLUME ["/config"]
 
 USER 568
-COPY ./apps/jellyfin/entrypoint.sh /entrypoint.sh
-# CMD ["/entrypoint.sh"]
 
-LABEL org.opencontainers.image.source="https://github.com/jellyfin/jellyfin"
-
-COPY ./apps/jellyfin/entrypoint.sh /entrypoint.sh
-COPY ./apps/plex/transcode-killer.py /transcode-killer.py
-COPY ./apps/plex/mount-checker.sh /mount-checker.sh
-
-ENTRYPOINT [ "/init" ]
+# Base image ENTRYPOINT is tini; entrypoint starts the killer + execs Jellyfin
+CMD ["/entrypoint.sh"]
