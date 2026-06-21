@@ -60,3 +60,18 @@ Needs a per-app tag-mapping pass.
   `4.5.2-4` (release suffix) rather than bare `4.5.2`. Either pull the
   tag with the trailing `-N` from a separate API call, or pin to the
   rolling `latest` tag and override at runtime via image digest.
+
+## Source repository gone / no longer reachable
+
+The git source referenced by `latest.sh` / `Dockerfile` is no longer
+publicly available, so both the version resolve and the build fail.
+Re-promote once a new source location is known (or wire in credentials
+if it has merely gone private).
+
+- **shluflix** — clones `https://bitbucket.org/shluflix-stremio/shluflix.git`.
+  The Bitbucket git endpoint now returns 401 (auth required) and both the
+  repo page and the whole `shluflix-stremio` workspace return 404, so the
+  unauthenticated `git clone` / `git ls-remote` fail with
+  "Authentication failed". The workspace 404 points to a deleted/renamed
+  source rather than a simple private-flip. Find the new upstream (or add
+  Bitbucket app-password creds) before re-promoting.
