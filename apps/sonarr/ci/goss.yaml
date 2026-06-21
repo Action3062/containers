@@ -1,10 +1,9 @@
 ## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#user
 user:
-  sonarr:
+  appnest:
     exists: true
     uid: 568
     gid: 568
-    home: /config
 
 ## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#file
 file:
@@ -12,8 +11,8 @@ file:
     exists: true
   /config:
     exists: true
-    owner: sonarr
-    group: sonarr
+    owner: appnest
+    group: appnest
 
 ## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#process
 process:

@@ -2,7 +2,7 @@
 channel=$1
 
 if [[ "${channel}" == "dev" ]]; then
-    branch=develop
+    branch=nightly
 else
     branch=master
 fi

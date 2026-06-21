@@ -1,25 +1,32 @@
-FROM alpine:3.20 AS fetch
+FROM ghcr.io/action3062/alpine:rolling AS fetch
 
 ARG VERSION
 ARG CHANNEL=main
 
-RUN apk add --no-cache curl tar
-
-# stable -> master, dev -> develop (apps/radarr/ci/latest.sh updated to match).
-RUN case "${CHANNEL}" in \
-      dev) BRANCH=develop ;; \
+# Base already ships curl, tar, file - no extra apk needed.
+# stable -> master, dev -> nightly (matches apps/radarr/ci/latest.sh).
+# /updatefile redirects to the latest tarball for the branch; Servarr ignores
+# ?version=, so we don't pin it in the URL.
+RUN set -eux; \
+    case "${CHANNEL}" in \
+      dev) BRANCH=nightly ;; \
       *)   BRANCH=master ;; \
-    esac && \
-    curl -fsSL \
-      "https://radarr.servarr.com/v1/update/${BRANCH}/updatefile?version=${VERSION}&os=linuxmusl&runtime=netcore&arch=x64" \
-      -o /tmp/radarr.tar.gz && \
-    mkdir -p /app && \
-    tar xzf /tmp/radarr.tar.gz -C /app && \
-    rm /tmp/radarr.tar.gz && \
-    rm -f /app/Radarr/package_info /app/Radarr/Radarr.Update
+    esac; \
+    URL="https://radarr.servarr.com/v1/update/${BRANCH}/updatefile?os=linuxmusl&runtime=netcore&arch=x64"; \
+    echo "Fetching: ${URL}"; \
+    curl -fL --retry 3 --retry-delay 2 --show-error \
+      -A "github.com/action3062/containers" \
+      -o /tmp/radarr.tar.gz "${URL}"; \
+    ls -la /tmp/radarr.tar.gz; \
+    file /tmp/radarr.tar.gz; \
+    mkdir -p /app/extract; \
+    tar xzf /tmp/radarr.tar.gz -C /app/extract; \
+    rm /tmp/radarr.tar.gz; \
+    rm -f /app/extract/Radarr/package_info /app/extract/Radarr/Radarr.Update; \
+    ls -la /app/extract/Radarr | head -10
 
 
-FROM alpine:3.20
+FROM ghcr.io/action3062/alpine:rolling
 
 ARG VERSION
 
@@ -28,23 +35,18 @@ LABEL org.opencontainers.image.title="radarr" \
       org.opencontainers.image.url="https://github.com/action3062/containers/tree/main/apps/radarr" \
       org.opencontainers.image.source="https://github.com/Radarr/Radarr"
 
+# .NET on musl needs icu-libs + libstdc++/libgcc + sqlite-libs.
+# Base image already ships ca-certificates, tini, tzdata, wget, curl, bash.
 RUN apk add --no-cache \
-      ca-certificates \
       icu-data-full \
       icu-libs \
       libgcc \
       libstdc++ \
-      sqlite-libs \
-      tini \
-      tzdata && \
-    update-ca-certificates && \
-    addgroup -g 568 radarr && \
-    adduser -D -u 568 -G radarr -h /config -s /sbin/nologin radarr && \
-    install -d -o radarr -g radarr -m 0755 /config
+      sqlite-libs
 
-COPY --from=fetch --chown=radarr:radarr /app/Radarr /app/radarr
+COPY --from=fetch --chown=appnest:appnest /app/extract/Radarr /app/radarr
 
-USER radarr
+USER appnest
 WORKDIR /config
 
 ENV XDG_CONFIG_HOME=/config \
@@ -57,5 +59,5 @@ EXPOSE 7878
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
   CMD wget -qO- http://127.0.0.1:7878/ping >/dev/null 2>&1 || exit 1
 
-ENTRYPOINT ["tini", "-s", "--"]
+# Base provides ENTRYPOINT ["/sbin/tini", "--"]; override CMD only.
 CMD ["/app/radarr/Radarr", "--nobrowser", "--data=/config"]
