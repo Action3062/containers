@@ -31,7 +31,7 @@ RUN set -eux; \
     echo "App dir: ${APP_DIR}"; \
     mv "${APP_DIR}" /app/Radarr; \
     rm /tmp/radarr.tar.gz; \
-    rm -f /app/Radarr/package_info /app/Radarr/Radarr.Update; \
+    rm -rf /app/Radarr/package_info /app/Radarr/Radarr.Update; \
     ls -la /app/Radarr | head -10
 
 
