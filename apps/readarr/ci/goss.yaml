@@ -1,0 +1,22 @@
+user:
+  appnest:
+    exists: true
+    uid: 568
+    gid: 568
+
+file:
+  /app/readarr/Readarr:
+    exists: true
+  /config:
+    exists: true
+    owner: appnest
+    group: appnest
+
+process:
+  Readarr:
+    running: true
+
+http:
+  http://localhost:8787/ping:
+    status: 200
+    timeout: 10000
