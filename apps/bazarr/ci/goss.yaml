@@ -1,0 +1,28 @@
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#user
+user:
+  appnest:
+    exists: true
+    uid: 568
+    gid: 568
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#file
+file:
+  /app/bazarr/bazarr.py:
+    exists: true
+  /config:
+    exists: true
+    owner: appnest
+    group: appnest
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#process
+process:
+  python3:
+    running: true
+
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#http
+## Bazarr serves its UI on 6767; root path is the SPA which always 200s once
+## the gateway is bound, even before the database init completes.
+http:
+  http://localhost:6767/:
+    status: 200
+    timeout: 15000
