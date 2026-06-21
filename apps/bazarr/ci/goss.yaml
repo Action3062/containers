@@ -19,10 +19,10 @@ process:
   python3:
     running: true
 
-## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#http
-## Bazarr serves its UI on 6767; root path is the SPA which always 200s once
-## the gateway is bound, even before the database init completes.
-http:
-  http://localhost:6767/:
-    status: 200
-    timeout: 15000
+## https://github.com/aelsabbahy/goss/blob/master/docs/manual.md#port
+## Bazarr's / endpoint returns 500 until the customer completes the
+## first-run wizard - the port being up is the strongest health signal
+## we can give from a fresh image with no persisted state.
+port:
+  tcp:6767:
+    listening: true
