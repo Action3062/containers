@@ -3,16 +3,29 @@ FROM ghcr.io/action3062/alpine:rolling AS fetch
 ARG VERSION
 ARG CHANNEL=main
 
-# stable -> main (Sonarr v4 stable), dev -> develop. Sonarr's API exposes
-# /v1/download/{branch} (NOT /v1/update/.../updatefile) which redirects to
-# the actual tarball when os+arch+version are passed.
+# stable -> main (Sonarr v4 stable), dev -> develop.
+#
+# Sonarr's /v1/download/{branch} returns a JSON release manifest with all
+# platform URLs, not a 302 to the tarball (regardless of os/arch/runtime
+# query params). Fetch the JSON, parse the linuxMusl.x64 archive URL with
+# jq (available in the base image), then download the actual tarball.
 RUN set -eux; \
     case "${CHANNEL}" in \
       dev) BRANCH=develop ;; \
       *)   BRANCH=main ;; \
     esac; \
-    URL="https://services.sonarr.tv/v1/download/${BRANCH}?version=${VERSION}&os=linuxmusl&runtime=netcore&arch=x64"; \
-    echo "Fetching: ${URL}"; \
+    META_URL="https://services.sonarr.tv/v1/download/${BRANCH}?version=${VERSION}"; \
+    echo "Fetching metadata: ${META_URL}"; \
+    curl -fL --retry 3 --retry-delay 2 --show-error \
+      -A "github.com/action3062/containers" \
+      -o /tmp/sonarr.json "${META_URL}"; \
+    URL="$(jq -r '.linuxMusl.x64.archive.url' /tmp/sonarr.json)"; \
+    if [ -z "${URL}" ] || [ "${URL}" = "null" ]; then \
+      echo "Could not find .linuxMusl.x64.archive.url in metadata; full JSON:"; \
+      cat /tmp/sonarr.json; echo; \
+      exit 1; \
+    fi; \
+    echo "Tarball URL: ${URL}"; \
     curl -fL --retry 3 --retry-delay 2 --show-error \
       -A "github.com/action3062/containers" \
       -w 'curl: http=%{http_code} size=%{size_download} url=%{url_effective}\n' \
@@ -29,7 +42,7 @@ RUN set -eux; \
     test -n "${APP_DIR}" -a -d "${APP_DIR}"; \
     echo "App dir: ${APP_DIR}"; \
     mv "${APP_DIR}" /app/Sonarr; \
-    rm /tmp/sonarr.tar.gz; \
+    rm /tmp/sonarr.tar.gz /tmp/sonarr.json; \
     rm -rf /app/Sonarr/package_info /app/Sonarr/Sonarr.Update; \
     ls -la /app/Sonarr | head -10
 
