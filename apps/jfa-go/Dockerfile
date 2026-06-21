@@ -13,6 +13,11 @@ ENV JFA_GO_BUILT_BY=$BUILT_BY
 # Full clone (not shallow): scripts/version.sh runs `git describe --tags`
 RUN git clone -b feature/paypal-stripe-integration https://github.com/Action3062/jfa-go.git /opt/build
 
+# Inject the BTCPay client package that is missing from the branch:
+# api-btcpay.go imports github.com/hrfee/jfa-go/btcpay, but the btcpay/ package
+# was never committed to the fork. Verified to make the branch compile.
+COPY ./apps/jfa-go/btcpay/btcpay.go /opt/build/btcpay/btcpay.go
+
 RUN cd /opt/build \
     && INTERNAL=off UPDATER=docker ./scripts/version.sh goreleaser build --snapshot --skip=validate --clean --id notray-e2ee
 RUN mv /opt/build/dist/*_linux_arm_6 /opt/build/dist/placeholder_linux_arm
